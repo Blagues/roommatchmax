@@ -1,0 +1,633 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Roommatch — Aanbod</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<style>
+  :root {
+    --bg: #0f1117;
+    --panel: #181c26;
+    --border: #252a38;
+    --accent: #e8ff47;
+    --accent2: #47c8ff;
+    --text: #e8eaf0;
+    --muted: #6b7280;
+    --green: #4ade80;
+    --red: #f87171;
+    --orange: #fb923c;
+    --panel-w: 380px;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: 'DM Sans', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    height: 100vh;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+  }
+
+  header {
+    height: 48px;
+    background: var(--panel);
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    padding: 0 20px;
+    gap: 16px;
+    flex-shrink: 0;
+    z-index: 1000;
+  }
+
+  header .logo {
+    font-family: 'DM Mono', monospace;
+    font-size: 13px;
+    font-weight: 500;
+    letter-spacing: 0.08em;
+    color: var(--accent);
+  }
+
+  header .divider { width: 1px; height: 20px; background: var(--border); }
+
+  header .stat {
+    font-size: 12px;
+    color: var(--muted);
+    font-family: 'DM Mono', monospace;
+  }
+  header .stat span { color: var(--text); }
+
+  .main {
+    display: flex;
+    flex: 1;
+    overflow: hidden;
+  }
+
+  #map {
+    flex: 1;
+    background: #0a0e18;
+    transition: margin-right 0.35s cubic-bezier(0.4,0,0.2,1);
+  }
+
+  /* Panel */
+  #panel {
+    width: var(--panel-w);
+    background: var(--panel);
+    border-left: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    transform: translateX(100%);
+    transition: transform 0.35s cubic-bezier(0.4,0,0.2,1);
+    position: absolute;
+    right: 0;
+    top: 48px;
+    bottom: 0;
+    z-index: 500;
+    overflow: hidden;
+  }
+
+  #panel.open {
+    transform: translateX(0);
+  }
+
+  .panel-header {
+    padding: 18px 20px 14px;
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+  }
+
+  .panel-close {
+    position: absolute;
+    top: 14px;
+    right: 16px;
+    background: none;
+    border: none;
+    color: var(--muted);
+    cursor: pointer;
+    font-size: 18px;
+    line-height: 1;
+    padding: 4px;
+    transition: color 0.15s;
+  }
+  .panel-close:hover { color: var(--text); }
+
+  .panel-adres {
+    font-size: 16px;
+    font-weight: 600;
+    color: var(--text);
+    margin-bottom: 2px;
+    padding-right: 28px;
+  }
+
+  .panel-stad {
+    font-size: 12px;
+    color: var(--muted);
+    font-family: 'DM Mono', monospace;
+  }
+
+  .panel-body {
+    flex: 1;
+    overflow-y: auto;
+    padding: 16px 20px;
+    scrollbar-width: thin;
+    scrollbar-color: var(--border) transparent;
+  }
+
+  /* Price hero */
+  .price-hero {
+    display: flex;
+    align-items: baseline;
+    gap: 6px;
+    margin-bottom: 16px;
+  }
+  .price-hero .amount {
+    font-family: 'DM Mono', monospace;
+    font-size: 28px;
+    font-weight: 500;
+    color: var(--accent);
+  }
+  .price-hero .per { font-size: 13px; color: var(--muted); }
+
+  /* Tags */
+  .tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-bottom: 16px;
+  }
+  .tag {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 3px 8px;
+    font-size: 11px;
+    font-family: 'DM Mono', monospace;
+    color: var(--muted);
+    white-space: nowrap;
+  }
+  .tag.highlight { border-color: var(--accent); color: var(--accent); }
+  .tag.info { border-color: var(--accent2); color: var(--accent2); }
+
+  /* Grid rows */
+  .info-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1px;
+    background: var(--border);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    overflow: hidden;
+    margin-bottom: 16px;
+  }
+  .info-cell {
+    background: var(--bg);
+    padding: 10px 12px;
+  }
+  .info-cell .label {
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--muted);
+    margin-bottom: 3px;
+    font-family: 'DM Mono', monospace;
+  }
+  .info-cell .value {
+    font-size: 13px;
+    color: var(--text);
+    font-weight: 500;
+  }
+  .info-cell .value.mono { font-family: 'DM Mono', monospace; }
+
+  /* Section header */
+  .section-title {
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--muted);
+    font-family: 'DM Mono', monospace;
+    margin-bottom: 10px;
+    margin-top: 6px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .section-title::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: var(--border);
+  }
+
+  /* Analyse */
+  .analyse-card {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 14px;
+    margin-bottom: 10px;
+  }
+  .analyse-card .card-label {
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--muted);
+    font-family: 'DM Mono', monospace;
+    margin-bottom: 6px;
+  }
+  .analyse-card .card-value {
+    font-family: 'DM Mono', monospace;
+    font-size: 22px;
+    font-weight: 500;
+    margin-bottom: 2px;
+  }
+  .analyse-card .card-sub {
+    font-size: 11px;
+    color: var(--muted);
+  }
+  .card-value.green { color: var(--green); }
+  .card-value.red { color: var(--red); }
+  .card-value.orange { color: var(--orange); }
+  .card-value.neutral { color: var(--text); }
+
+  /* Buurt lijst */
+  .buurt-lijst { display: flex; flex-direction: column; gap: 1px; background: var(--border); border: 1px solid var(--border); border-radius: 8px; overflow: hidden; margin-bottom: 10px; }
+  .buurt-row { background: var(--bg); padding: 9px 12px; }
+  .buurt-adres { font-size: 12px; font-weight: 500; color: var(--text); margin-bottom: 3px; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+  .buurt-meta { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .buurt-basis { font-size: 11px; font-family: 'DM Mono', monospace; color: var(--muted); }
+  .buurt-ins { font-size: 11px; font-family: 'DM Mono', monospace; color: var(--accent); }
+  .buurt-reacties { font-size: 11px; font-family: 'DM Mono', monospace; color: var(--muted); }
+  .buurt-datum { font-size: 11px; font-family: 'DM Mono', monospace; color: var(--muted); margin-left: auto; }
+  .badge-voorrang { font-size: 10px; font-family: 'DM Mono', monospace; color: var(--orange); border: 1px solid var(--orange); border-radius: 3px; padding: 1px 5px; }
+
+  /* Stad stats */
+  .stad-stats { border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px; margin-bottom: 10px; }
+  .stad-stats-label { font-size: 10px; text-transform: uppercase; letter-spacing: 0.07em; color: var(--muted); font-family: 'DM Mono', monospace; display: block; margin-bottom: 8px; }
+  .stad-stats-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; }
+  .ss-lbl { font-size: 9px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); font-family: 'DM Mono', monospace; margin-bottom: 2px; }
+  .ss-val { font-size: 12px; font-family: 'DM Mono', monospace; color: var(--text); }
+
+  /* Bar chart for toewijzing */
+  .basis-list { display: flex; flex-direction: column; gap: 8px; }
+  .basis-row { }
+  .basis-label {
+    display: flex;
+    justify-content: space-between;
+    font-size: 11px;
+    margin-bottom: 3px;
+    font-family: 'DM Mono', monospace;
+    color: var(--text);
+  }
+  .basis-bar-bg {
+    height: 4px;
+    background: var(--border);
+    border-radius: 2px;
+    overflow: hidden;
+  }
+  .basis-bar-fill {
+    height: 100%;
+    background: var(--accent2);
+    border-radius: 2px;
+    transition: width 0.6s ease;
+  }
+
+  /* Infoveld */
+  .infoveld {
+    font-size: 12px;
+    color: var(--muted);
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 10px 12px;
+    margin-bottom: 12px;
+    line-height: 1.5;
+    font-style: italic;
+  }
+
+  /* Link */
+  .panel-link {
+    display: block;
+    text-align: center;
+    padding: 10px;
+    background: transparent;
+    border: 1px solid var(--accent);
+    border-radius: 6px;
+    color: var(--accent);
+    font-size: 12px;
+    font-family: 'DM Mono', monospace;
+    text-decoration: none;
+    transition: background 0.15s;
+    margin-bottom: 20px;
+  }
+  .panel-link:hover { background: rgba(232,255,71,0.08); }
+
+  /* Loading spinner */
+  .loading {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 12px;
+    color: var(--muted);
+    font-family: 'DM Mono', monospace;
+    padding: 12px 0;
+  }
+  .spin {
+    width: 14px; height: 14px;
+    border: 2px solid var(--border);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: spin 0.7s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* Leaflet overrides */
+  .leaflet-container { background: #0a0e18 !important; }
+  .leaflet-tile { filter: brightness(0.45) saturate(0.4) hue-rotate(195deg); }
+
+  /* Custom dot marker */
+  .dot-marker {
+    width: 10px; height: 10px;
+    border-radius: 50%;
+    border: 2px solid rgba(255,255,255,0.2);
+    cursor: pointer;
+    transition: transform 0.15s;
+  }
+  .dot-marker:hover { transform: scale(1.6); }
+  .dot-marker.active { transform: scale(1.8); border-color: white; z-index: 9999 !important; }
+
+  /* Legend */
+  .map-legend {
+    position: absolute;
+    bottom: 24px;
+    left: 16px;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 10px 14px;
+    z-index: 400;
+    font-family: 'DM Mono', monospace;
+    font-size: 10px;
+    color: var(--muted);
+  }
+  .map-legend .legend-title {
+    color: var(--text);
+    font-size: 10px;
+    margin-bottom: 6px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+  }
+  .legend-row {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    margin-bottom: 4px;
+  }
+  .legend-dot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <span class="logo">ROOMMATCH</span>
+  <div class="divider"></div>
+  <span class="stat">Aanbod: <span id="stat-count">—</span></span>
+  <div class="divider"></div>
+  <span class="stat">Steden: <span id="stat-cities">—</span></span>
+</header>
+
+<div class="main">
+  <div id="map"></div>
+
+  <div id="panel">
+    <div class="panel-header">
+      <button class="panel-close" onclick="closePanel()">✕</button>
+      <div class="panel-adres" id="p-adres">—</div>
+      <div class="panel-stad" id="p-stad">—</div>
+    </div>
+    <div class="panel-body" id="panel-body"></div>
+  </div>
+</div>
+
+<div class="map-legend" id="legend">
+  <div class="legend-title">Huur/maand</div>
+  <div class="legend-row"><div class="legend-dot" style="background:#4ade80"></div> &lt; €500</div>
+  <div class="legend-row"><div class="legend-dot" style="background:#a3e635"></div> €500–700</div>
+  <div class="legend-row"><div class="legend-dot" style="background:#fb923c"></div> €700–900</div>
+  <div class="legend-row"><div class="legend-dot" style="background:#f87171"></div> &gt; €900</div>
+  <div class="legend-row"><div class="legend-dot" style="background:#6b7280"></div> onbekend</div>
+</div>
+
+<script>
+const map = L.map('map', { zoomControl: false, attributionControl: false })
+  .setView([52.2, 4.9], 8);
+
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+L.control.zoom({ position: 'bottomright' }).addTo(map);
+
+let activeMarker = null;
+let allListings = [];
+
+function priceColor(huur) {
+  if (!huur) return '#6b7280';
+  if (huur < 500) return '#4ade80';
+  if (huur < 700) return '#a3e635';
+  if (huur < 900) return '#fb923c';
+  return '#f87171';
+}
+
+function fmt(v, prefix='€', suffix='') {
+  if (v == null || v === '') return '—';
+  return prefix + Number(v).toLocaleString('nl-NL', {minimumFractionDigits: 0, maximumFractionDigits: 2}) + suffix;
+}
+
+function fmtDate(s) {
+  if (!s) return '—';
+  try {
+    const d = new Date(s);
+    return d.toLocaleDateString('nl-NL', {day:'numeric',month:'short',year:'numeric'});
+  } catch { return s; }
+}
+
+function closePanel() {
+  document.getElementById('panel').classList.remove('open');
+  if (activeMarker) {
+    activeMarker._icon?.querySelector('.dot-marker')?.classList.remove('active');
+    activeMarker = null;
+  }
+}
+
+async function openListing(listing, marker) {
+  if (activeMarker && activeMarker !== marker) {
+    activeMarker._icon?.querySelector('.dot-marker')?.classList.remove('active');
+  }
+  activeMarker = marker;
+  marker._icon?.querySelector('.dot-marker')?.classList.add('active');
+
+  document.getElementById('p-adres').textContent = listing.adres;
+  document.getElementById('p-stad').textContent = `${listing.postcode} ${listing.stad}${listing.wijk ? ' · ' + listing.wijk : ''}`;
+  document.getElementById('panel').classList.add('open');
+
+  const body = document.getElementById('panel-body');
+  body.innerHTML = renderMain(listing) + `<div class="section-title">Analyse</div><div class="loading"><div class="spin"></div>Analyse laden…</div>`;
+
+  const r = await fetch(`/api/analyse/${listing.id}`);
+  const analyse = await r.json();
+  body.innerHTML = renderMain(listing) + renderAnalyse(analyse, listing);
+}
+
+function renderMain(l) {
+  const energyColors = { A: '#4ade80', B: '#86efac', C: '#a3e635', D: '#facc15', E: '#fb923c', F: '#f97316', G: '#f87171' };
+  const eColor = energyColors[l.energielabel] || '#6b7280';
+
+  let html = `
+    <div class="price-hero">
+      <span class="amount">${fmt(l.huurTotaal)}</span>
+      <span class="per">/maand totaal</span>
+    </div>
+    <div class="tags">
+      ${l.oppervlakte ? `<span class="tag highlight">${l.oppervlakte} m²</span>` : ''}
+      ${l.energielabel ? `<span class="tag" style="border-color:${eColor};color:${eColor}">Label ${l.energielabel}</span>` : ''}
+      ${l.woningtype ? `<span class="tag">${l.woningtype}</span>` : ''}
+      ${l.actielabel ? `<span class="tag info">${l.actielabel}</span>` : ''}
+      ${l.doelgroepen ? `<span class="tag">${l.doelgroepen}</span>` : ''}
+    </div>
+    <div class="info-grid">
+      <div class="info-cell">
+        <div class="label">Kale huur</div>
+        <div class="value mono">${fmt(l.huurKaal)}</div>
+      </div>
+      <div class="info-cell">
+        <div class="label">Servicekosten</div>
+        <div class="value mono">${fmt(l.servicekosten)}</div>
+      </div>
+      <div class="info-cell">
+        <div class="label">Beschikbaar</div>
+        <div class="value">${l.beschikbaarPer || '—'}</div>
+      </div>
+      <div class="info-cell">
+        <div class="label">Sluitingsdatum</div>
+        <div class="value">${fmtDate(l.sluitingsdatum)}</div>
+      </div>
+      <div class="info-cell">
+        <div class="label">Reacties</div>
+        <div class="value mono">${l.reacties ?? '—'}</div>
+      </div>
+      <div class="info-cell">
+        <div class="label">Verdieping</div>
+        <div class="value">${l.verdieping || '—'}</div>
+      </div>
+      <div class="info-cell">
+        <div class="label">Verwarming</div>
+        <div class="value">${l.verwarming || '—'}</div>
+      </div>
+      <div class="info-cell">
+        <div class="label">Keuken</div>
+        <div class="value">${l.keuken || '—'}</div>
+      </div>
+    </div>`;
+
+  if (l.infoveld) {
+    html += `<div class="infoveld">"${l.infoveld}"</div>`;
+  }
+
+  html += `<a class="panel-link" href="https://www.roommatch.nl/aanbod/studentenwoningen/details/${l.urlKey}" target="_blank">↗ Bekijk op Roommatch</a>`;
+
+  return html;
+}
+
+function daysToStr(d) {
+  const jaren = Math.floor(d / 365);
+  const maanden = Math.floor((d % 365) / 30);
+  if (jaren && maanden) return `${jaren}j ${maanden}m`;
+  if (jaren) return `${jaren} jaar`;
+  return `${maanden} maanden`;
+}
+
+function renderAnalyse(a, l) {
+  let html = '';
+
+  // --- Buurtlijst ---
+  const straatLabel = a.aantalZelfdeStraat > 0 ? l.adres.split(' ')[0] + ' e.o.' : l.stad;
+  html += `<div class="section-title">Recente toewijzingen · ${straatLabel}</div>`;
+
+  if (a.buurtLijst && a.buurtLijst.length) {
+    html += `<div class="buurt-lijst">`;
+    for (const item of a.buurtLijst) {
+      const ins = item.inschrijfduurDagen;
+      const insStr = ins ? daysToStr(ins) : null;
+      const voorrangBadge = item.voorrang ? `<span class="badge-voorrang">★ voorrang</span>` : '';
+      html += `
+        <div class="buurt-row">
+          <div class="buurt-adres">${item.adres} ${voorrangBadge}</div>
+          <div class="buurt-meta">
+            <span class="buurt-basis">${item.basis}</span>
+            ${insStr ? `<span class="buurt-ins">${insStr}</span>` : ''}
+            ${item.reacties != null ? `<span class="buurt-reacties">${item.reacties} react.</span>` : ''}
+            <span class="buurt-datum">${item.contractdatum}</span>
+          </div>
+        </div>`;
+    }
+    html += `</div>`;
+
+    if (a.aantalZelfdeStraat === 0) {
+      html += `<div style="font-size:11px;color:var(--muted);margin-bottom:12px">Geen toewijzingen op dezelfde straat — stadsdata getoond</div>`;
+    }
+  } else {
+    html += `<div style="font-size:12px;color:var(--muted);padding:8px 0 12px">Geen historische toewijzingen gevonden in de buurt.</div>`;
+  }
+
+  // --- Stad stats ---
+  if (a.stadStats) {
+    const ss = a.stadStats;
+    html += `
+      <div class="stad-stats">
+        <span class="stad-stats-label">${l.stad} inschrijfduur (n=${ss.n})</span>
+        <div class="stad-stats-row">
+          <div><div class="ss-lbl">min</div><div class="ss-val">${daysToStr(ss.min)}</div></div>
+          <div><div class="ss-lbl">gem</div><div class="ss-val">${daysToStr(ss.gem)}</div></div>
+          <div><div class="ss-lbl">mediaan</div><div class="ss-val">${daysToStr(ss.mediaan)}</div></div>
+          <div><div class="ss-lbl">max</div><div class="ss-val">${daysToStr(ss.max)}</div></div>
+        </div>
+      </div>`;
+  }
+
+  html += `<div style="height:16px"></div>`;
+  return html;
+}
+
+async function init() {
+  const res = await fetch('/api/aanbod');
+  allListings = await res.json();
+
+  document.getElementById('stat-count').textContent = allListings.length;
+  const cities = new Set(allListings.map(l => l.stad).filter(Boolean));
+  document.getElementById('stat-cities').textContent = cities.size;
+
+  for (const listing of allListings) {
+    const color = priceColor(listing.huurTotaal);
+    const icon = L.divIcon({
+      className: '',
+      html: `<div class="dot-marker" style="background:${color}"></div>`,
+      iconSize: [10, 10],
+      iconAnchor: [5, 5],
+    });
+    const marker = L.marker([listing.lat, listing.lon], { icon }).addTo(map);
+    marker.on('click', () => openListing(listing, marker));
+  }
+}
+
+init();
+</script>
+</body>
+</html>
