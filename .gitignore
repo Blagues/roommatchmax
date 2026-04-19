@@ -1,4 +1,8 @@
+# Only docs/ is tracked — everything else stays local
+*.py
+*.sh
+*.csv
+*.txt
+templates/
 __pycache__/
-*.pyc
 .DS_Store
-logs.txt
